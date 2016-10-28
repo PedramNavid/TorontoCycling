@@ -6,26 +6,37 @@
 #
 
 library(shiny)
+library(leaflet)
 
 shinyUI(fluidPage(
   
   theme = "style.css",
+  tags$head(tags$style(HTML("
+  .marker-custom {
+  background-color: rgba(256, 0, 0, 1);
+  border-radius: 20px;
+  }
+
+  .marker-custom div {
+    background-color: rgba(110, 204, 57, 1);
+    }
+    "))),
+  
     # Application title
-  titlePanel("Old Faithful Geyser Data"),
+  titlePanel("Toronto Cycling Data"),
 
   # Sidebar with a slider input for number of bins
   sidebarLayout(
     sidebarPanel(
-      sliderInput("bins",
-                  "Number of bins:",
-                  min = 1,
-                  max = 50,
-                  value = 30)
+      helpText("This viz shows one month worth of cycling data from the City of Toronto's Bike App.")
     ),
 
     # Show a plot of the generated distribution
     mainPanel(
-      leafletOutput("cycleMap")
+      sliderInput("datapoints", "Number of points to plot: ", 1000, 330000, 5000, 
+                  step = 1000 ),
+      leafletOutput("cycleMap",
+                    height = 500)
     )
   )
 ))

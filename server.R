@@ -8,44 +8,46 @@
 library(shiny)
 library(jsonlite)
 library(dplyr)
+library(leaflet)
 
-get_trip_data <- function(max_offset = 1000, verbose = TRUE) {
-  DATA_ID = "82a70e22-c7fe-4255-b283-d2d6e0a4dcd3"
-  APIKEY = "2c92ac9fee4b1bee1e84530fc759d7b79d799b97775cd429b4c3cbdde0c9f5b5"
-  raw_data <- data.frame()
-  
-  for(x in seq(0, max_offset, by = 250)) {
-    URL = paste0("https://api.namara.io/v0/data_sets/", DATA_ID, "/data/en-0?api_key=", APIKEY,
-               "&offset=", x)
-    tmp <- fromJSON(URL)
-    if (verbose & x %% 1000 == 0) cat(".")
-    if (length(tmp) == 0) break
-    raw_data <- rbind(raw_data, tmp)
-  }
-  
+
+cycling_data <- "cycling-data/rds/location.rds"
+
+if(!file.exists(cycling_data)) {
+  raw_data <- readRDS("cycling-data/rds/toronto_cycling.rds")
   location_cnt <- raw_data %>% 
-    group_by(latitude, longitude) %>% 
-    summarise(trips = n())
+    group_by(longitude, latitude) %>% 
+    summarise(n = n()) %>% 
+    filter(longitude < -75) %>%  # Filter out weird NS data
+    ungroup() %>% 
+    sample_frac(1) # Shuffle everything so underplotting is more representative
+saveRDS(location_cnt, cycling_data)
+} else location_cnt <- readRDS(cycling_data)
   
-  return(location_cnt)
-}
-
 
 shinyServer(function(input, output) {
-
   
+
   output$cycleMap <- renderLeaflet({
-    locations <- get_trip_data()
     
-    map <- leaflet(locations) %>% 
-      addTiles() %>% 
+    map <- leaflet(location_cnt[1:input$datapoints,]) %>% 
+      addTiles(urlTemplate = "http://{s}.tile.opencyclemap.org/cycle/{z}/{x}/{y}.png") %>% 
       addCircleMarkers(
-        radius = 2,
+        fillColor = "#F00",
+        weight = n,
+        clusterOptions = markerClusterOptions(maxClusterRadius = 10 ,
+                                              chunkedLoading = TRUE,
+                                              chunkInterval = 1000,
+                                              iconCreateFunction =
+JS("function(cluster) {
+        return L.divIcon({ className: 'marker-custom', iconSize: L.point(10, 10) });
+    }")),
+        radius = 1,
         stroke = FALSE,
-        fillOpacity = 0.5,
-        clusterOptions = markerClusterOptions(maxClusterRadius = 20)) %>% 
-      mapOptions(zoomToLimits = 'always')
+        fillOpacity = 1) %>% 
+      mapOptions(zoomToLimits = 'first')
     map
+    
     
   })
   
